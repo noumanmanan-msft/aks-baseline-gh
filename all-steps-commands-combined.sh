@@ -283,10 +283,10 @@ spec:
 EOF
 
 # Create an entry in public DNS zone for the following FQDN pointing to Application Gateway IP by creating an A-Record in DNS.
-# bicycle.azcloudjedi.com
+# bicycle.domain-name.com
 
 # To test the entire deployment to AKS, go to the following URL
-https://bicycle.flower-food-domain-name.com/
+https://bicycle.domain-name.com/
 
 
 
