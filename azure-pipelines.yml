@@ -1,0 +1,197 @@
+trigger:
+- main
+
+# pool:
+#   name: 'PrivateAgentsForACR'
+#   demands:
+#     - agent.name -equals AzureVM
+
+resources:
+- repo: self
+
+variables:
+  azureSubscription: 'Nouman-External-MSFT-Subscription'
+  dockerRegistryServiceConnection: 'ACR-AKS-Baseline-Architecture'
+  aksResourceGroupName: 'rg-bu0001a0008'
+  imageRepository: 'dotnet/core/aspnet/webapp'
+  containerRegistry: 'acraksfx7h5e6qdj4sg'
+  dockerfilePath: '$(Build.SourcesDirectory)/src/Dockerfile'
+  tag: '$(Build.BuildId)'
+  vmImageName: 'Ubuntu-latest'
+
+stages:
+- stage: Build
+  displayName: Build, push the image to ACR
+
+  jobs:
+  - job: Build
+    displayName: Build
+    steps:
+    - task: AzureCLI@2
+      displayName: Get ADO agent IP and it to ACR Firewall
+      inputs:
+        azureSubscription: $(azureSubscription)
+        scriptType: 'pscore'
+        scriptLocation: 'inlineScript'
+        inlineScript: |
+          $agentIP = curl 'https://api.ipify.org?format=txt'
+          az acr network-rule add --resource-group $(aksResourceGroupName) --name $(containerRegistry) --ip-address $agentIP
+    
+    - task: Docker@2
+      displayName: Build and push an image to container registry
+      inputs:
+        command: buildAndPush
+        repository: $(imageRepository)
+        dockerfile: $(dockerfilePath)
+        containerRegistry: $(dockerRegistryServiceConnection)
+        tags: |
+          $(tag)
+
+    - task: AzureCLI@2
+      displayName: Remove agent IP from ACR Firewall
+      inputs:
+        azureSubscription: $(azureSubscription)
+        scriptType: 'pscore'
+        scriptLocation: 'inlineScript'
+        inlineScript: |
+          $agentIP = $(az acr network-rule list --resource-group $(aksResourceGroupName) --name $(containerRegistry) --query "ipRules[0].ipAddressOrRange" --out tsv)
+          az acr network-rule remove --resource-group $(aksResourceGroupName) --name $(containerRegistry) --ip-address $agentIP
+    
+    # - task: PublishPipelineArtifact@1
+    #   inputs:
+    #     artifact: 'manifests'
+    #     path: 'manifests'
+
+- stage: Dev
+  displayName: Run aks deployment
+  dependsOn: Build
+  variables:
+    - group: Baseline-AKS-Cluster-Creds
+    - name: kubernetesCluster
+      value: 'aks-fx7h5e6qdj4sg'
+  
+  jobs:
+  - deployment: Deploy
+    displayName: Deploy job
+    environment: Dev
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - task: KubeloginInstaller@0
+            inputs:
+              kubeloginVersion: 'latest'
+      
+          - task: AzureCLI@2
+            displayName: kubelogin for AAD enabled AKS Clusters
+            inputs:
+              azureSubscription: $(azureSubscription)
+              scriptType: 'pscore'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                kubelogin convert-kubeconfig -l spn --client-id $(ClientID) --client-secret $(ClientSecret)
+          
+          - task: Kubernetes@1
+            displayName: Run aks deployment
+            inputs:
+              connectionType: Azure Resource Manager
+              azureSubscriptionEndpoint: $(azureSubscription)
+              azureResourceGroup: $(aksResourceGroupName)
+              kubernetesCluster: $(kubernetesCluster)
+              namespace: 'a0008'
+              command: 'apply'
+              useConfigurationFile: true
+              configurationType: 'inline'        
+              useClusterAdmin: $(useClusterAdmin)
+              inline: |
+                apiVersion: apps/v1
+                kind: Deployment
+                metadata:
+                  name: aspnetapp-deployment
+                  namespace: a0008
+                  labels:
+                    app.kubernetes.io/name: aspnetapp
+                spec:
+                  replicas: 2
+                  selector:
+                    matchLabels:
+                      app.kubernetes.io/name: aspnetapp
+                  strategy:
+                    type: RollingUpdate
+                    rollingUpdate:
+                      maxSurge: 1
+                      maxUnavailable: 1
+                  template:
+                    metadata:
+                      labels:
+                        app.kubernetes.io/name: aspnetapp
+                    spec:
+                      automountServiceAccountToken: false
+                      securityContext:
+                        runAsUser: 10001
+                        runAsGroup: 3000
+                      affinity:
+                        podAntiAffinity:
+                          requiredDuringSchedulingIgnoredDuringExecution:
+                          - labelSelector:
+                              matchExpressions:
+                              - key: app.kubernetes.io/name
+                                operator: In
+                                values:
+                                - aspnetapp
+                            topologyKey: "kubernetes.io/hostname"
+                        podAffinity:
+                          preferredDuringSchedulingIgnoredDuringExecution:
+                          - weight: 1
+                            podAffinityTerm:
+                              labelSelector:
+                                matchExpressions:
+                                - key: app.kubernetes.io/name
+                                  operator: In
+                                  values:
+                                  - traefik-ingress-ilb
+                              topologyKey: "kubernetes.io/hostname"
+                      containers:
+                      - name: aspnet-webapp-sample
+                        image:  $(containerRegistry).azurecr.io/$(imageRepository):$(tag)
+                        imagePullPolicy: Always
+                        securityContext:
+                          allowPrivilegeEscalation: false
+                          readOnlyRootFilesystem: false
+                          capabilities:
+                            drop:
+                              - all
+                        resources:
+                          requests:
+                            cpu: 50m
+                            memory: 128Mi
+                          limits:
+                            cpu: 100m
+                            memory: 256Mi
+                        env:
+                        - name: ASPNETCORE_URLS
+                          value: "http://*:8080"
+                      nodeSelector:
+                        agentpool: npuser01
+
+- stage: QA
+  displayName: Import image into ACR
+  dependsOn: Build
+                                              
+  jobs:
+    - deployment: Deploy
+      displayName: Deploy job
+      environment: QA
+      strategy:
+        runOnce:
+          deploy:
+            steps:
+            - task: AzureCLI@2
+              displayName: Import image from other ACR
+              inputs:
+                azureSubscription: $(azureSubscription)
+                scriptType: 'pscore'
+                scriptLocation: 'inlineScript'
+                inlineScript: |
+                  az acr import --name acraksfx7h5e6qdj4sg --source acrdemoscus001.azurecr.io/dotnet/core-windows/aspnet/webapp:265 --image dotnet/core-windows/aspnet/webapp:265
+          
