@@ -1,3 +1,6 @@
+# Azure Kubernetes Service (AKS) baseline cluster - TL;DR;
+Use "all-steps-commands-combined.sh" to provision the AKS Baseline cluster from one single file. Please follow steps by running one set to script for each step at a time.
+
 # Azure Kubernetes Service (AKS) baseline cluster
 
 This reference implementation demonstrates the _recommended starting (baseline) infrastructure architecture_ for a general purpose [AKS cluster](https://azure.microsoft.com/services/kubernetes-service). This implementation and document is meant to guide an interdisciplinary team or multiple distinct teams like networking, security and development through the process of getting this general purpose baseline infrastructure deployed and understanding the components of it.

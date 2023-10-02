@@ -13,7 +13,7 @@ cd aks-baseline
 
 # Step 02 - Generate your client-facing and AKS ingress controller TLS certificates
 
-export DOMAIN_NAME_AKS_BASELINE="flowerfoods-domain-name.com"
+export DOMAIN_NAME_AKS_BASELINE="domain-name.com"
 
 # run either option 1 or 2, but must run at least one of the options to create the PFX/CRT files for Application Gateway
 
