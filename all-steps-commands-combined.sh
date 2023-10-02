@@ -152,7 +152,7 @@ az aks get-credentials -g rg-bu0001a0008 -n $AKS_CLUSTER_NAME
 
 # if you get the following error
 #
-# Error from server (Forbidden): nodes is forbidden: User "nouman.manan@MngEnvMCAP193478.onmicrosoft.com" cannot list resource "nodes" in API group "" at the cluster scope: User does not have access to the resource in Azure. Update role assignment to allow access.
+# Error from server (Forbidden): nodes is forbidden: User "user.name@domain.com" cannot list resource "nodes" in API group "" at the cluster scope: User does not have access to the resource in Azure. Update role assignment to allow access.
 #
 # then grant RBAC "Azure Kubernetes Service RBAC Cluster Admin" role access to the user
 # this may take from few seconds to few minutes to take affect
