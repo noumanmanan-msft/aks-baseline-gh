@@ -1,20 +1,15 @@
 trigger:
 - main
 
-# pool:
-#   name: 'PrivateAgentsForACR'
-#   demands:
-#     - agent.name -equals AzureVM
-
 resources:
 - repo: self
 
 variables:
-  azureSubscription: 'Nouman-External-MSFT-Subscription'
-  dockerRegistryServiceConnection: 'ACR-AKS-Baseline-Architecture'
+  azureSubscription: 'replace-with-azure-subscription-name'
+  dockerRegistryServiceConnection: 'replace-with-azure-container-registry-service-connection-name'
   aksResourceGroupName: 'rg-bu0001a0008'
-  imageRepository: 'dotnet/core/aspnet/webapp'
-  containerRegistry: 'acraksfx7h5e6qdj4sg'
+  imageRepository: 'replace-with-container-repository-name'
+  containerRegistry: 'replace-with-container-regsitry-name'
   dockerfilePath: '$(Build.SourcesDirectory)/src/Dockerfile'
   tag: '$(Build.BuildId)'
   vmImageName: 'Ubuntu-latest'
@@ -56,11 +51,6 @@ stages:
         inlineScript: |
           $agentIP = $(az acr network-rule list --resource-group $(aksResourceGroupName) --name $(containerRegistry) --query "ipRules[0].ipAddressOrRange" --out tsv)
           az acr network-rule remove --resource-group $(aksResourceGroupName) --name $(containerRegistry) --ip-address $agentIP
-    
-    # - task: PublishPipelineArtifact@1
-    #   inputs:
-    #     artifact: 'manifests'
-    #     path: 'manifests'
 
 - stage: Dev
   displayName: Run aks deployment
@@ -68,7 +58,7 @@ stages:
   variables:
     - group: Baseline-AKS-Cluster-Creds
     - name: kubernetesCluster
-      value: 'aks-fx7h5e6qdj4sg'
+      value: 'replace-with-aks-cluster-name'
   
   jobs:
   - deployment: Deploy
@@ -173,25 +163,3 @@ stages:
                           value: "http://*:8080"
                       nodeSelector:
                         agentpool: npuser01
-
-- stage: QA
-  displayName: Import image into ACR
-  dependsOn: Build
-                                              
-  jobs:
-    - deployment: Deploy
-      displayName: Deploy job
-      environment: QA
-      strategy:
-        runOnce:
-          deploy:
-            steps:
-            - task: AzureCLI@2
-              displayName: Import image from other ACR
-              inputs:
-                azureSubscription: $(azureSubscription)
-                scriptType: 'pscore'
-                scriptLocation: 'inlineScript'
-                inlineScript: |
-                  az acr import --name acraksfx7h5e6qdj4sg --source acrdemoscus001.azurecr.io/dotnet/core-windows/aspnet/webapp:265 --image dotnet/core-windows/aspnet/webapp:265
-          
