@@ -8,8 +8,9 @@ az feature list -o table --query "[?name=='Microsoft.ContainerService/EnableWork
 # When all say "Registered" then re-register the AKS resource provider
 az provider register --namespace Microsoft.ContainerService
 
-git clone https://github.com/mspnp/aks-baseline.git
-cd aks-baseline
+# It is not needed to clone the repository as this repo has all the required files
+# git clone https://github.com/mspnp/aks-baseline.git
+# cd aks-baseline
 
 # Step 02 - Generate your client-facing and AKS ingress controller TLS certificates
 
